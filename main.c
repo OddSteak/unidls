@@ -27,7 +27,6 @@ char* base_dir = "/home/dell/uwa/sem2_2024";
 void handle_events(int fd);
 void parse_reg(const char* name);
 void process_file(const char* name, char** strmatches);
-void copy_file(char* src, char* dst);
 void gen_name(char* path, char* ext, char* buf);
 
 int main()
@@ -54,8 +53,9 @@ int main()
         }
 
         if (poll_num > 0) {
-            if (fds[0].revents & POLLIN)
+            if (fds[0].revents & POLLIN) {
                 handle_events(fd);
+            }
         }
     }
 
@@ -96,6 +96,7 @@ void handle_events(int fd)
 
             if ((event->mask & IN_CREATE) && !(event->mask & IN_ISDIR)
                 && event->len) {
+                sleep(5);
                 parse_reg(event->name);
             }
         }
@@ -131,14 +132,14 @@ void parse_reg(const char* name)
 
         process_file(name, strmatches);
     } else {
-        printf("no match found\n");
+        printf("no match found %s\n", name);
     }
 }
 
 void process_file(const char* name, char** matches)
 {
-    char new_name[1000];
-    char new_dir[4096];
+    char new_name[500];
+    char new_dir[500];
 
     strcat(strcat(strcat(strcpy(new_dir, base_dir), "/"), matches[CODE]), "/");
 
@@ -174,42 +175,33 @@ void process_file(const char* name, char** matches)
     }
 
     if (!mkdir(new_dir, 0755) || errno == EEXIST) {
-        char new_path[strlen(new_dir) + strlen(new_name) + 1];
-        char old_path[strlen(DL_DIR) + strlen(name) + 2];
+        char new_path[1000];
+        char old_path[1000];
 
         strcat(strcpy(new_path, new_dir), new_name);
         strcat(strcat(strcpy(old_path, DL_DIR), "/"), name);
 
-        printf("moving %s -> %s\n", old_path, new_path);
         if (!access(new_path, F_OK)) {
-            char buf[100];
+            char buf[1100];
             gen_name(new_path, matches[EXT], buf);
-            copy_file(old_path, buf);
-        } else {
-            copy_file(old_path, new_path);
+            printf("moving %s -> %s\n", old_path, buf);
+            if (rename(old_path, buf) == 0)
+                printf("successfuly moved\n");
+            else
+                printf("failed to move\n%s\n", strerror(errno));
+            return;
         }
+        printf("moving \\\\%s\\\\\n\\\\%s\\\\\n", old_path, new_path);
+        if (rename(old_path, new_path) == 0)
+            printf("successfuly moved\n");
+        else
+            printf("failed to move\n%s\n", strerror(errno));
 
     } else if (errno == ENOENT) {
         fprintf(stderr, "unit code invalid\n");
     } else {
         fprintf(stderr, "aaah run away...failed to create dir");
     }
-}
-
-void copy_file(char* src, char* dst)
-{
-    FILE* src_cp = fopen(src, "r");
-    FILE* dst_cp = fopen(dst, "w");
-
-    char buf_cp[50];
-
-    while (fgets(buf_cp, 50, src_cp) != NULL) {
-        fputs(buf_cp, dst_cp);
-    };
-
-    fclose(src_cp);
-    fclose(dst_cp);
-    unlink(src);
 }
 
 void gen_name(char* path, char* ext, char* buf)
