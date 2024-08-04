@@ -29,16 +29,15 @@ enum grps {
 
 char* base_dir = "/home/dell/uwa/sem2_2024";
 
-void handle_events(int fd, int wd);
+void handle_events(int fd);
 void parse_reg(const char* name);
-void process_file(const char* name, char** strmatches, int nmatch);
-int strtonum(char* match);
+void process_file(const char* name, char** strmatches);
 void copy_file(char* src, char* dst);
 
 int main()
 {
     int fd = inotify_init1(IN_NONBLOCK);
-    int wd = inotify_add_watch(fd, DL_DIR, IN_CREATE);
+    inotify_add_watch(fd, DL_DIR, IN_CREATE);
     struct pollfd fds[1];
 
     if (fd == -1) {
@@ -60,7 +59,7 @@ int main()
 
         if (poll_num > 0) {
             if (fds[0].revents & POLLIN)
-                handle_events(fd, wd);
+                handle_events(fd);
         }
     }
 
@@ -69,7 +68,7 @@ int main()
     exit(EXIT_SUCCESS);
 }
 
-void handle_events(int fd, int wd)
+void handle_events(int fd)
 {
     /*
       Some systems cannot read integer variables if they are not
@@ -134,13 +133,13 @@ void parse_reg(const char* name)
                     matches[i].rm_eo - matches[i].rm_so));
         }
 
-        process_file(name, strmatches, nmatch);
+        process_file(name, strmatches);
     } else {
         printf("no match found\n");
     }
 }
 
-void process_file(const char* name, char** matches, int nmatch)
+void process_file(const char* name, char** matches)
 {
     char new_name[1000];
     char new_dir[4096];
@@ -178,32 +177,29 @@ void process_file(const char* name, char** matches, int nmatch)
             matches[EXT]);
     }
 
-    mkdir(new_dir, 0755);
+    if (!mkdir(new_dir, 0755) || errno == EEXIST) {
+        char new_path[strlen(new_dir) + strlen(new_name) + 1];
+        char old_path[strlen(DL_DIR) + strlen(name) + 2];
 
-    char new_path[strlen(new_dir) + strlen(new_name) + 1];
-    char old_path[strlen(DL_DIR) + strlen(name) + 1];
+        strcat(strcpy(new_path, new_dir), new_name);
+        strcat(strcat(strcpy(old_path, DL_DIR), "/"), name);
 
-    strcat(strcpy(new_path, new_dir), new_name);
-    strcat(strcpy(old_path, DL_DIR), name);
-
-    printf("moving %s -> %s\n", old_path, new_path);
-    copy_file(old_path, new_path);
-}
-
-int strtonum(char* match)
-{
-    char* end;
-    long lnum = strtol(match, &end, 10);
-    if (lnum > INT_MAX || lnum < INT_MIN) {
-        fprintf(stderr, "should have used rust\n");
-        exit(EXIT_FAILURE);
+        printf("moving %s -> %s\n", old_path, new_path);
+        copy_file(old_path, new_path);
+    } else if (errno == ENOENT) {
+        fprintf(stderr, "unit code invalid\n");
+    } else {
+        fprintf(stderr, "aaah run away...failed to create dir");
     }
-
-    return (int)lnum;
 }
 
 void copy_file(char* src, char* dst)
 {
+    if (!access(dst, F_OK)) {
+        fprintf(stderr, "implement randomized names you lazy fuck\n");
+        return;
+    }
+
     FILE* src_cp = fopen(src, "r");
     FILE* dst_cp = fopen(dst, "w");
 
@@ -215,4 +211,5 @@ void copy_file(char* src, char* dst)
 
     fclose(src_cp);
     fclose(dst_cp);
+    unlink(src);
 }
