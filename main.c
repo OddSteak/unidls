@@ -10,11 +10,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-/*
-a tool to move files in the format wkN_lab{0,1}_title?.ext to appropriate
-directories
-*/
-
 char* PATTERN = "wk([0-9]{1,2})_(lec[0-9]{1,2}|lab|ws)_([a-z]{4}[0-9]{4})_([a-"
                 "zA-Z0-9]+)\\.([a-zA-Z0-9]+)";
 const char* DL_DIR = "/home/dell/dls";
@@ -33,6 +28,7 @@ void handle_events(int fd);
 void parse_reg(const char* name);
 void process_file(const char* name, char** strmatches);
 void copy_file(char* src, char* dst);
+void gen_name(char* path, char* ext, char* buf);
 
 int main()
 {
@@ -185,7 +181,14 @@ void process_file(const char* name, char** matches)
         strcat(strcat(strcpy(old_path, DL_DIR), "/"), name);
 
         printf("moving %s -> %s\n", old_path, new_path);
-        copy_file(old_path, new_path);
+        if (!access(new_path, F_OK)) {
+            char buf[100];
+            gen_name(new_path, matches[EXT], buf);
+            copy_file(old_path, buf);
+        } else {
+            copy_file(old_path, new_path);
+        }
+
     } else if (errno == ENOENT) {
         fprintf(stderr, "unit code invalid\n");
     } else {
@@ -195,11 +198,6 @@ void process_file(const char* name, char** matches)
 
 void copy_file(char* src, char* dst)
 {
-    if (!access(dst, F_OK)) {
-        fprintf(stderr, "implement randomized names you lazy fuck\n");
-        return;
-    }
-
     FILE* src_cp = fopen(src, "r");
     FILE* dst_cp = fopen(dst, "w");
 
@@ -212,4 +210,22 @@ void copy_file(char* src, char* dst)
     fclose(src_cp);
     fclose(dst_cp);
     unlink(src);
+}
+
+void gen_name(char* path, char* ext, char* buf)
+{
+    int suffix = 1;
+    printf("file exists\ngenerating a new name\n");
+    strcpy(buf, path);
+    while (!access(buf, F_OK)) {
+        printf("current suffix: %d\n", suffix);
+        strncpy(buf, path, strlen(path) - strlen(ext) - 1);
+        buf[strlen(path) - strlen(ext) - 1] = 0;
+        printf("removed ext %s\n", buf);
+        char strs[30];
+        sprintf(strs, "-%d", suffix);
+        strcat(strcat(strcat(buf, strs), "."), ext);
+        printf("final path: %s\n", buf);
+        suffix++;
+    }
 }
