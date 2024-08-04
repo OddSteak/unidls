@@ -57,6 +57,7 @@ int main()
                 handle_events(fd);
             }
         }
+        sleep(2);
     }
 
     printf("stopping now");
@@ -96,7 +97,7 @@ void handle_events(int fd)
 
             if ((event->mask & IN_CREATE) && !(event->mask & IN_ISDIR)
                 && event->len) {
-                sleep(5);
+                sleep(2);
                 parse_reg(event->name);
             }
         }
@@ -191,7 +192,7 @@ void process_file(const char* name, char** matches)
                 printf("failed to move\n%s\n", strerror(errno));
             return;
         }
-        printf("moving \\\\%s\\\\\n\\\\%s\\\\\n", old_path, new_path);
+        printf("moving %s -> %s\n", old_path, new_path);
         if (rename(old_path, new_path) == 0)
             printf("successfuly moved\n");
         else
